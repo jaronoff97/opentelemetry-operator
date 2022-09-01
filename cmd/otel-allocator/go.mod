@@ -3,6 +3,7 @@ module github.com/open-telemetry/opentelemetry-operator/cmd/otel-allocator
 go 1.19
 
 require (
+	github.com/buraksezer/consistent v0.9.0
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/go-kit/log v0.2.0
 	github.com/go-logr/logr v1.2.0
