@@ -28,8 +28,7 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: |
-            otel/autoinstrumentation-java
-            ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java
+            jaronoff/autoinstrumentation-java
           tags: |
             type=match,pattern=v(.*),group=1,value=v${{ env.VERSION }}
 
