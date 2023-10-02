@@ -371,6 +371,11 @@ type OpenTelemetryCollectorStatus struct {
 	// +optional
 	Scale ScaleSubresourceStatus `json:"scale,omitempty"`
 
+	// Validated is set only when RunValidation is true. It is set upon a success or failure from
+	// the validation job
+	// +optional
+	Validated bool `json:"validated,omitempty"`
+
 	// Version of the managed OpenTelemetry Collector (operand)
 	// +optional
 	Version string `json:"version,omitempty"`

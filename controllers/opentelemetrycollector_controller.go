@@ -26,10 +26,12 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	autoscalingv2beta2 "k8s.io/api/autoscaling/v2beta2"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -39,9 +41,11 @@ import (
 	"github.com/open-telemetry/opentelemetry-operator/internal/manifests"
 	"github.com/open-telemetry/opentelemetry-operator/internal/manifests/collector"
 	"github.com/open-telemetry/opentelemetry-operator/internal/manifests/targetallocator"
+	"github.com/open-telemetry/opentelemetry-operator/internal/naming"
 	"github.com/open-telemetry/opentelemetry-operator/internal/status"
 	"github.com/open-telemetry/opentelemetry-operator/pkg/autodetect"
 	"github.com/open-telemetry/opentelemetry-operator/pkg/collector/reconcile"
+	"github.com/open-telemetry/opentelemetry-operator/pkg/constants"
 	"github.com/open-telemetry/opentelemetry-operator/pkg/featuregate"
 )
 
@@ -119,13 +123,49 @@ func (r *OpenTelemetryCollectorReconciler) removeRouteTask(ora autodetect.OpenSh
 	return nil
 }
 
-func (r *OpenTelemetryCollectorReconciler) doCRUD(ctx context.Context, params manifests.Params) error {
-	// Collect all objects owned by the operator, to be able to prune objects
-	// which exist in the cluster but are not managed by the operator anymore.
-	desiredObjects, err := r.BuildAll(params)
-	if err != nil {
-		return err
+// runValidation determines if the collector configuration has been validated
+func (r *OpenTelemetryCollectorReconciler) runValidation(ctx context.Context, params manifests.Params) (bool, error) {
+	configHash := collector.GetConfigMapSHA(params.Instance.Spec.Config)
+	// If we've already validated this collector
+	r.log.Info("should validation be run",
+		"validated", params.Instance.Status.Validated,
+		"currentConfigHash", params.Instance.Annotations[constants.CollectorConfigSHA],
+		"newConfigHash", configHash)
+	if params.Instance.Status.Validated && params.Instance.Annotations[constants.CollectorConfigSHA] == configHash {
+		return true, nil
 	}
+	desiredObjects, err := r.BuildManifests(params, collector.BuildValidation)
+	if err != nil {
+		return false, err
+	}
+	crudErr := r.doCRUD(ctx, params, desiredObjects)
+	if crudErr != nil {
+		return false, crudErr
+	}
+	nsn := types.NamespacedName{Namespace: params.Instance.Namespace, Name: naming.Job(params.Instance.Name, configHash)}
+	job := batchv1.Job{}
+	clientErr := params.Client.Get(ctx, nsn, &job)
+	if clientErr != nil {
+		return false, clientErr
+	}
+	if job.Status.Active == 0 && job.Status.Succeeded == 0 && job.Status.Failed == 0 {
+		r.log.Info("job hasn't started yet", "job", job.Name)
+		return false, nil
+	}
+	if job.Status.Active > 0 {
+		r.log.Info("job is still running", "job", job.Name)
+		return false, nil
+	}
+	if job.Status.Succeeded > 0 {
+		return true, nil // Job ran successfully
+	}
+	if job.Status.Failed > 0 {
+		return false, fmt.Errorf("%s has failed, check pod logs", job.Name)
+	}
+	return true, nil
+}
+
+func (r *OpenTelemetryCollectorReconciler) doCRUD(ctx context.Context, params manifests.Params, desiredObjects []client.Object) error {
 	var errs []error
 	for _, desired := range desiredObjects {
 		l := r.log.WithValues(
@@ -208,6 +248,7 @@ func NewReconciler(p Params) *OpenTelemetryCollectorReconciler {
 // +kubebuilder:rbac:groups="",resources=configmaps;services;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=apps,resources=daemonsets;deployments;statefulsets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;create;update
 // +kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;update;patch;delete
@@ -244,8 +285,21 @@ func (r *OpenTelemetryCollectorReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{}, err
 	}
 
-	err := r.doCRUD(ctx, params)
-	return status.HandleReconcileStatus(ctx, log, params, err)
+	if params.Instance.Spec.RunValidation {
+		validated, validationErr := r.runValidation(ctx, params)
+		if validationErr != nil || !validated {
+			return ctrl.Result{Requeue: true}, validationErr
+		}
+		log.Info("collector has been validated")
+	}
+
+	// Construct the collector and target allocator's manifests
+	desiredObjects, err := r.BuildManifests(params, collector.Build, targetallocator.Build)
+	if err != nil {
+		return status.HandleReconcileStatus(ctx, log, params, err)
+	}
+	crudErr := r.doCRUD(ctx, params, desiredObjects)
+	return status.HandleReconcileStatus(ctx, log, params, crudErr)
 }
 
 // RunTasks runs all the tasks associated with this reconciler.
@@ -268,12 +322,8 @@ func (r *OpenTelemetryCollectorReconciler) RunTasks(ctx context.Context, params 
 	return nil
 }
 
-// BuildAll returns the generation and collected errors of all manifests for a given instance.
-func (r *OpenTelemetryCollectorReconciler) BuildAll(params manifests.Params) ([]client.Object, error) {
-	builders := []manifests.Builder{
-		collector.Build,
-		targetallocator.Build,
-	}
+// BuildManifests returns the generation and collected errors of all manifests for a given instance.
+func (r *OpenTelemetryCollectorReconciler) BuildManifests(params manifests.Params, builders ...manifests.Builder) ([]client.Object, error) {
 	var resources []client.Object
 	for _, builder := range builders {
 		objs, err := builder(params)

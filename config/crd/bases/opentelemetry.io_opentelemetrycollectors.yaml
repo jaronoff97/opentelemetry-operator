@@ -6265,6 +6265,10 @@ spec:
                       (their labels matc
                     type: string
                 type: object
+              validated:
+                description: Validated is set only when RunValidation is true. It
+                  is set upon a success or failure from the validation job
+                type: boolean
               version:
                 description: Version of the managed OpenTelemetry Collector (operand)
                 type: string

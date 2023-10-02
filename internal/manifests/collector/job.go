@@ -16,7 +16,7 @@ package collector
 
 import (
 	"github.com/go-logr/logr"
-	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -25,36 +25,46 @@ import (
 	"github.com/open-telemetry/opentelemetry-operator/internal/naming"
 )
 
-// Deployment builds the deployment for the given instance.
-func Deployment(cfg config.Config, logger logr.Logger, otelcol v1alpha1.OpenTelemetryCollector) *appsv1.Deployment {
-	name := naming.Collector(otelcol.Name)
+var (
+	// backoffLimit is set to one because we don't need to retry this job, it either fails or succeeds.
+	backoffLimit int32 = 1
+)
+
+func Job(cfg config.Config, logger logr.Logger, otelcol v1alpha1.OpenTelemetryCollector) *batchv1.Job {
+	confMapSha := GetConfigMapSHA(otelcol.Spec.Config)
+	name := naming.Job(otelcol.Name, confMapSha)
 	labels := Labels(otelcol, name, cfg.LabelsFilter())
 
 	annotations := Annotations(otelcol)
 	podAnnotations := PodAnnotations(otelcol)
+	// manualSelector is explicitly false because we don't want to cause a potential conflict between the job
+	// and the replicaset
+	manualSelector := false
 
-	return &appsv1.Deployment{
+	c := Container(cfg, logger, otelcol, true)
+	c.Args = append([]string{"validate"}, c.Args...)
+
+	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Namespace:   otelcol.Namespace,
 			Labels:      labels,
 			Annotations: annotations,
 		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: otelcol.Spec.Replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: SelectorLabels(otelcol),
-			},
+		Spec: batchv1.JobSpec{
+			ManualSelector: &manualSelector,
+			BackoffLimit:   &backoffLimit,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels:      labels,
 					Annotations: podAnnotations,
 				},
 				Spec: corev1.PodSpec{
+					RestartPolicy:                 corev1.RestartPolicyNever,
 					ServiceAccountName:            ServiceAccountName(otelcol),
-					InitContainers:                InitContainers(cfg, logger, otelcol),
-					Containers:                    append(otelcol.Spec.AdditionalContainers, Container(cfg, logger, otelcol, true)),
-					Volumes:                       Volumes(cfg, otelcol, naming.ConfigMap(otelcol.Name)),
+					InitContainers:                otelcol.Spec.InitContainers,
+					Containers:                    append(otelcol.Spec.AdditionalContainers, c),
+					Volumes:                       Volumes(cfg, otelcol, naming.VersionedConfigMap(otelcol.Name, confMapSha)),
 					DNSPolicy:                     getDNSPolicy(otelcol),
 					HostNetwork:                   otelcol.Spec.HostNetwork,
 					Tolerations:                   otelcol.Spec.Tolerations,

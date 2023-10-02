@@ -52,7 +52,7 @@ func DaemonSet(cfg config.Config, logger logr.Logger, otelcol v1alpha1.OpenTelem
 					ServiceAccountName: ServiceAccountName(otelcol),
 					InitContainers:     InitContainers(cfg, logger, otelcol),
 					Containers:         append(otelcol.Spec.AdditionalContainers, Container(cfg, logger, otelcol, true)),
-					Volumes:            Volumes(cfg, otelcol),
+					Volumes:            Volumes(cfg, otelcol, naming.ConfigMap(otelcol.Name)),
 					Tolerations:        otelcol.Spec.Tolerations,
 					NodeSelector:       otelcol.Spec.NodeSelector,
 					HostNetwork:        otelcol.Spec.HostNetwork,

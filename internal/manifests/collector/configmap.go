@@ -45,3 +45,25 @@ func ConfigMap(cfg config.Config, logger logr.Logger, otelcol v1alpha1.OpenTelem
 		},
 	}
 }
+
+func VersionedConfigMap(cfg config.Config, logger logr.Logger, otelcol v1alpha1.OpenTelemetryCollector) *corev1.ConfigMap {
+	name := naming.VersionedConfigMap(otelcol.Name, GetConfigMapSHA(otelcol.Spec.Config))
+	labels := Labels(otelcol, name, []string{})
+
+	replacedConf, err := ReplaceConfig(otelcol)
+	if err != nil {
+		logger.V(2).Info("failed to update prometheus config to use sharded targets: ", "err", err)
+	}
+
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Namespace:   otelcol.Namespace,
+			Labels:      labels,
+			Annotations: otelcol.Annotations,
+		},
+		Data: map[string]string{
+			"collector.yaml": replacedConf,
+		},
+	}
+}

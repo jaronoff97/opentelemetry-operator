@@ -94,5 +94,11 @@ func UpdateCollectorStatus(ctx context.Context, cli client.Client, changed *v1al
 	changed.Status.Image = statusImage
 	changed.Status.Scale.StatusReplicas = statusReplicas
 
+	// Set the config hash on the CRD
+	changed.SetAnnotations(collector.Annotations(*changed))
+
+	// We made it this far, this implies that we have validated the config
+	changed.Status.Validated = true
+
 	return nil
 }

@@ -27,6 +27,8 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-operator/apis/v1alpha1"
 	"github.com/open-telemetry/opentelemetry-operator/internal/config"
+	"github.com/open-telemetry/opentelemetry-operator/internal/manifests/collector"
+	"github.com/open-telemetry/opentelemetry-operator/internal/manifests/targetallocator"
 )
 
 var (
@@ -590,9 +592,9 @@ service:
 				Config: cfg,
 			})
 			params := reconciler.getParams(tt.args.instance)
-			got, err := reconciler.BuildAll(params)
+			got, err := reconciler.BuildManifests(params, collector.Build, targetallocator.Build)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("BuildAll() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("BuildManifests() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			require.Equal(t, tt.want, got)

@@ -54,7 +54,7 @@ func StatefulSet(cfg config.Config, logger logr.Logger, otelcol v1alpha1.OpenTel
 					ServiceAccountName:        ServiceAccountName(otelcol),
 					InitContainers:            InitContainers(cfg, logger, otelcol),
 					Containers:                append(otelcol.Spec.AdditionalContainers, Container(cfg, logger, otelcol, true)),
-					Volumes:                   Volumes(cfg, otelcol),
+					Volumes:                   Volumes(cfg, otelcol, naming.ConfigMap(otelcol.Name)),
 					DNSPolicy:                 getDNSPolicy(otelcol),
 					HostNetwork:               otelcol.Spec.HostNetwork,
 					Tolerations:               otelcol.Spec.Tolerations,
