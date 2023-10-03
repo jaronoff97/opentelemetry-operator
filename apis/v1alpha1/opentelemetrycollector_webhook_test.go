@@ -634,7 +634,7 @@ func TestOTELColValidatingWebhook(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := test.otelcol.validateCRDSpec()
+			_, err := test.otelcol.validateCRDSpec()
 			if test.expectedErr == "" {
 				assert.NoError(t, err)
 				return

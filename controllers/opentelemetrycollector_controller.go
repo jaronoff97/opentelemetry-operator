@@ -123,7 +123,7 @@ func (r *OpenTelemetryCollectorReconciler) removeRouteTask(ora autodetect.OpenSh
 	return nil
 }
 
-// runValidation determines if the collector configuration has been validated
+// runValidation determines if the collector configuration has been validated.
 func (r *OpenTelemetryCollectorReconciler) runValidation(ctx context.Context, params manifests.Params) (bool, error) {
 	configHash := collector.GetConfigMapSHA(params.Instance.Spec.Config)
 	// If we've already validated this collector
