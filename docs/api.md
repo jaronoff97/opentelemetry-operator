@@ -3854,6 +3854,15 @@ OpenTelemetryCollectorSpec defines the desired state of OpenTelemetryCollector.
         </td>
         <td>false</td>
       </tr><tr>
+        <td><b>runValidationJob</b></td>
+        <td>boolean</td>
+        <td>
+          RunValidationJob enables the operator to run a job with the provided collector image to ensure that the running configuration of the collector is valid.<br/>
+          <br/>
+            <i>Default</i>: false<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
         <td><b><a href="#opentelemetrycollectorspecsecuritycontext">securityContext</a></b></td>
         <td>object</td>
         <td>

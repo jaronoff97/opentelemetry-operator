@@ -103,7 +103,7 @@ type OpenTelemetryCollectorSpec struct {
 	// https://github.com/open-telemetry/opentelemetry-collector/blob/main/service/README.md#how-to-validate-configuration-file-and-return-all-errors-without-running-collector
 	// +optional
 	// +kubebuilder:default:=false
-	RunValidationJob bool `json:"run_validation_job,omitempty"`
+	RunValidationJob bool `json:"runValidationJob,omitempty"`
 	// Resources to set on the OpenTelemetry Collector pods.
 	// +optional
 	Resources v1.ResourceRequirements `json:"resources,omitempty"`
