@@ -3941,6 +3941,12 @@ spec:
                       resources required.
                     type: object
                 type: object
+              run_validation_job:
+                default: false
+                description: RunValidationJob enables the operator to run a job with
+                  the provided collector image to ensure that the running configuration
+                  of the collector is valid.
+                type: boolean
               securityContext:
                 description: SecurityContext configures the container security context
                   for the opentelemetry-collector container.

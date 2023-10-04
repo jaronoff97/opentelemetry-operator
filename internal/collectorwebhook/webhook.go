@@ -16,6 +16,7 @@ package collectorwebhook
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/go-logr/logr"
@@ -25,6 +26,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/open-telemetry/opentelemetry-operator/apis/v1alpha1"
+	"github.com/open-telemetry/opentelemetry-operator/internal/config"
+	"github.com/open-telemetry/opentelemetry-operator/internal/manifests"
+	"github.com/open-telemetry/opentelemetry-operator/internal/manifests/collector"
 )
 
 var (
@@ -35,6 +39,7 @@ var (
 type Webhook struct {
 	logger logr.Logger
 	c      client.Client
+	cfg    config.Config
 }
 
 func (c Webhook) Default(ctx context.Context, obj runtime.Object) error {
@@ -51,7 +56,14 @@ func (c Webhook) ValidateCreate(ctx context.Context, obj runtime.Object) (warnin
 	if !ok {
 		return nil, fmt.Errorf("expected an OpenTelemetryCollector, received %T", obj)
 	}
-	return otelcol.ValidateCRDSpec()
+	warnings, err = otelcol.ValidateCRDSpec()
+	if err != nil {
+		return
+	}
+	if otelcol.Spec.RunValidationJob {
+		err = c.runValidationJob(ctx, otelcol)
+	}
+	return
 }
 
 func (c Webhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (warnings admission.Warnings, err error) {
@@ -59,21 +71,51 @@ func (c Webhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Obje
 	if !ok {
 		return nil, fmt.Errorf("expected an OpenTelemetryCollector, received %T", newObj)
 	}
-	return otelcol.ValidateCRDSpec()
+	warnings, err = otelcol.ValidateCRDSpec()
+	if err != nil {
+		return
+	}
+	return
 }
 
 func (c Webhook) ValidateDelete(ctx context.Context, obj runtime.Object) (warnings admission.Warnings, err error) {
 	otelcol, ok := obj.(*v1alpha1.OpenTelemetryCollector)
-	if !ok {
+	if !ok || otelcol == nil {
 		return nil, fmt.Errorf("expected an OpenTelemetryCollector, received %T", obj)
 	}
-	return otelcol.ValidateCRDSpec()
+	warnings, err = otelcol.ValidateCRDSpec()
+	if err != nil {
+		return
+	}
+	return
 }
 
-func SetupCollectorValidatingWebhookWithManager(mgr controllerruntime.Manager) error {
+func (c Webhook) runValidationJob(ctx context.Context, otelcol *v1alpha1.OpenTelemetryCollector) error {
+	params := manifests.Params{
+		Config:  c.cfg,
+		OtelCol: *otelcol,
+		Log:     c.logger,
+	}
+	desiredObjects, err := collector.BuildValidation(params)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, desired := range desiredObjects {
+		err := c.c.Create(ctx, desired)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func SetupCollectorValidatingWebhookWithManager(mgr controllerruntime.Manager, cfg config.Config) error {
 	cvw := &Webhook{
 		c:      mgr.GetClient(),
 		logger: mgr.GetLogger().WithValues("handler", "Webhook"),
+		cfg:    cfg,
 	}
 	return controllerruntime.NewWebhookManagedBy(mgr).
 		For(&v1alpha1.OpenTelemetryCollector{}).

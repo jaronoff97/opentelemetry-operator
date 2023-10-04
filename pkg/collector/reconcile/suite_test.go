@@ -63,6 +63,7 @@ var (
 	cancel     context.CancelFunc
 
 	logger = logf.Log.WithName("unit-tests")
+	conf   = config.New(config.WithCollectorImage(defaultCollectorImage), config.WithTargetAllocatorImage(defaultTaAllocationImage))
 
 	instanceUID = uuid.NewUUID()
 )
@@ -136,7 +137,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	if err = collectorwebhook.SetupCollectorValidatingWebhookWithManager(mgr); err != nil {
+	if err = collectorwebhook.SetupCollectorValidatingWebhookWithManager(mgr, conf); err != nil {
 		fmt.Printf("failed to SetupWebhookWithManager: %v", err)
 		os.Exit(1)
 	}
@@ -202,7 +203,7 @@ func paramsWithMode(mode v1alpha1.Mode) manifests.Params {
 		fmt.Printf("Error getting yaml file: %v", err)
 	}
 	return manifests.Params{
-		Config: config.New(config.WithCollectorImage(defaultCollectorImage), config.WithTargetAllocatorImage(defaultTaAllocationImage)),
+		Config: conf,
 		Client: k8sClient,
 		OtelCol: v1alpha1.OpenTelemetryCollector{
 			TypeMeta: metav1.TypeMeta{
