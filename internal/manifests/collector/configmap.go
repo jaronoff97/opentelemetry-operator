@@ -20,11 +20,14 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-operator/internal/manifests"
 	"github.com/open-telemetry/opentelemetry-operator/internal/naming"
+	"github.com/open-telemetry/opentelemetry-operator/pkg/constants"
 )
 
 func VersionedConfigMap(params manifests.Params) *corev1.ConfigMap {
-	name := naming.VersionedConfigMap(params.OtelCol.Name, GetConfigMapSHA(params.OtelCol.Spec.Config))
-	labels := Labels(params.OtelCol, name, []string{})
+	configHash := GetConfigMapSHA(params.OtelCol.Spec.Config)
+	name := naming.VersionedConfigMap(params.OtelCol.Name, configHash)
+	labels := Labels(params.OtelCol, name, params.Config.LabelsFilter())
+	labels[constants.CollectorValidationJobLabelName] = naming.Job(params.OtelCol.Name, configHash)
 
 	replacedConf, err := ReplaceConfig(params.OtelCol)
 	if err != nil {

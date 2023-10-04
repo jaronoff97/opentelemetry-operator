@@ -57,15 +57,15 @@ func BuildCollector(params manifests.Params) ([]client.Object, error) {
 	return resources, nil
 }
 
-// reconcileDesiredObjects runs the reconcile process using the mutateFn over the given list of objects.
-func reconcileDesiredObjects(ctx context.Context, kubeClient client.Client, logger logr.Logger, owner metav1.Object, scheme *runtime.Scheme, desiredObjects ...client.Object) error {
+// ReconcileDesiredObjects runs the reconcile process using the mutateFn over the given list of objects.
+func ReconcileDesiredObjects(ctx context.Context, kubeClient client.Client, logger logr.Logger, owner metav1.Object, scheme *runtime.Scheme, shouldSetOwner bool, desiredObjects ...client.Object) error {
 	var errs []error
 	for _, desired := range desiredObjects {
 		l := logger.WithValues(
 			"object_name", desired.GetName(),
 			"object_kind", desired.GetObjectKind(),
 		)
-		if isNamespaceScoped(desired) {
+		if isNamespaceScoped(desired) && shouldSetOwner {
 			if setErr := ctrl.SetControllerReference(owner, desired, scheme); setErr != nil {
 				l.Error(setErr, "failed to set controller owner reference to desired")
 				errs = append(errs, setErr)
@@ -97,4 +97,25 @@ func reconcileDesiredObjects(ctx context.Context, kubeClient client.Client, logg
 		return fmt.Errorf("failed to create objects for %s: %w", owner.GetName(), errors.Join(errs...))
 	}
 	return nil
+}
+
+// pruneObjects deletes any provided objects from the cluster. These objects should be determined by using a proper
+// label selector.
+func pruneObjects(ctx context.Context, kubeClient client.Client, logger logr.Logger, objects ...client.Object) error {
+	pruneErrs := []error{}
+	for _, obj := range objects {
+		l := logger.WithValues(
+			"object_name", obj.GetName(),
+			"object_kind", obj.GetObjectKind(),
+		)
+		l.Info("pruning unmanaged resource")
+
+		// setting DeletePropagationBackground allows GC to delete any pods created for pruned jobs.
+		err := kubeClient.Delete(ctx, obj, client.PropagationPolicy(metav1.DeletePropagationBackground))
+		if err != nil {
+			l.Error(err, "failed to delete resource")
+			pruneErrs = append(pruneErrs, err)
+		}
+	}
+	return errors.Join(pruneErrs...)
 }

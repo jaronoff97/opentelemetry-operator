@@ -21,17 +21,19 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-operator/internal/manifests"
 	"github.com/open-telemetry/opentelemetry-operator/internal/naming"
+	"github.com/open-telemetry/opentelemetry-operator/pkg/constants"
 )
 
 var (
 	// backoffLimit is set to one because we don't need to retry this job, it either fails or succeeds.
-	backoffLimit int32 = 1
+	backoffLimit int32 = 0
 )
 
 func Job(params manifests.Params) *batchv1.Job {
 	confMapSha := GetConfigMapSHA(params.OtelCol.Spec.Config)
 	name := naming.Job(params.OtelCol.Name, confMapSha)
 	labels := Labels(params.OtelCol, name, params.Config.LabelsFilter())
+	labels[constants.CollectorValidationJobLabelName] = name
 
 	annotations := Annotations(params.OtelCol)
 	podAnnotations := PodAnnotations(params.OtelCol)

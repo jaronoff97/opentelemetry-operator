@@ -24,8 +24,10 @@ import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -34,9 +36,11 @@ import (
 	"github.com/open-telemetry/opentelemetry-operator/apis/v1alpha1"
 	"github.com/open-telemetry/opentelemetry-operator/internal/config"
 	"github.com/open-telemetry/opentelemetry-operator/internal/manifests"
+	"github.com/open-telemetry/opentelemetry-operator/internal/manifests/collector"
 	"github.com/open-telemetry/opentelemetry-operator/internal/status"
 	"github.com/open-telemetry/opentelemetry-operator/pkg/autodetect"
 	"github.com/open-telemetry/opentelemetry-operator/pkg/collector/reconcile"
+	"github.com/open-telemetry/opentelemetry-operator/pkg/constants"
 	"github.com/open-telemetry/opentelemetry-operator/pkg/featuregate"
 )
 
@@ -180,6 +184,11 @@ func (r *OpenTelemetryCollectorReconciler) Reconcile(ctx context.Context, req ct
 	}
 
 	params := r.getParams(instance)
+	objectsToPrune, findErr := r.findObjectsOwnedByOperator(ctx, params)
+	if findErr != nil {
+		return ctrl.Result{}, findErr
+	}
+
 	if err := r.RunTasks(ctx, params); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -188,8 +197,13 @@ func (r *OpenTelemetryCollectorReconciler) Reconcile(ctx context.Context, req ct
 	if buildErr != nil {
 		return ctrl.Result{}, buildErr
 	}
-	err := reconcileDesiredObjects(ctx, r.Client, log, &params.OtelCol, params.Scheme, desiredObjects...)
-	return status.HandleReconcileStatus(ctx, log, params, err)
+	err := ReconcileDesiredObjects(ctx, r.Client, log, &params.OtelCol, params.Scheme, true, desiredObjects...)
+	result, statusErr := status.HandleReconcileStatus(ctx, log, params, err)
+	if statusErr != nil {
+		return result, statusErr
+	}
+	err = pruneObjects(ctx, r.Client, log, objectsToPrune...)
+	return result, err
 }
 
 // RunTasks runs all the tasks associated with this reconciler.
@@ -232,6 +246,42 @@ func (r *OpenTelemetryCollectorReconciler) SetupWithManager(mgr ctrl.Manager) er
 	}
 
 	builder = builder.Owns(&autoscalingv2.HorizontalPodAutoscaler{})
-
 	return builder.Complete(r)
+}
+
+// findObjectsOwnedByOperator cleans up any workloads that are no longer being used.
+func (r *OpenTelemetryCollectorReconciler) findObjectsOwnedByOperator(ctx context.Context, params manifests.Params) ([]client.Object, error) {
+	var ownedObjects []client.Object
+
+	collectorLabels := collector.SelectorLabels(params.OtelCol)
+	listOps := &client.ListOptions{
+		Namespace:     params.OtelCol.Namespace,
+		LabelSelector: labels.SelectorFromSet(collectorLabels),
+	}
+	// get old validation jobs to be cleaned up
+	jobList := &batchv1.JobList{}
+	err := r.List(ctx, jobList, listOps)
+	if err != nil {
+		return nil, fmt.Errorf("error listing jobs: %w", err)
+	}
+	for i := range jobList.Items {
+		// only clean up jobs with that have this label present
+		if _, ok := jobList.Items[i].GetLabels()[constants.CollectorValidationJobLabelName]; ok {
+			ownedObjects = append(ownedObjects, &jobList.Items[i])
+		}
+	}
+	// get old validation configmap to be cleaned up
+	configMapList := &corev1.ConfigMapList{}
+	err = r.List(ctx, configMapList, listOps)
+	if err != nil {
+		return nil, fmt.Errorf("error listing configmap: %w", err)
+	}
+	for i := range configMapList.Items {
+		// only clean up configmaps with that have this label present
+		if _, ok := configMapList.Items[i].GetLabels()[constants.CollectorValidationJobLabelName]; ok {
+			ownedObjects = append(ownedObjects, &configMapList.Items[i])
+		}
+	}
+	r.log.Info("finished finding objects to prune", "len", len(ownedObjects))
+	return ownedObjects, nil
 }

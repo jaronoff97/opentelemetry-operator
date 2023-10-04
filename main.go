@@ -46,7 +46,7 @@ import (
 
 	otelv1alpha1 "github.com/open-telemetry/opentelemetry-operator/apis/v1alpha1"
 	"github.com/open-telemetry/opentelemetry-operator/controllers"
-	"github.com/open-telemetry/opentelemetry-operator/internal/collectorwebhook"
+	"github.com/open-telemetry/opentelemetry-operator/controllers/collectorwebhook"
 	"github.com/open-telemetry/opentelemetry-operator/internal/config"
 	"github.com/open-telemetry/opentelemetry-operator/internal/version"
 	"github.com/open-telemetry/opentelemetry-operator/internal/webhookhandler"

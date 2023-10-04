@@ -16,19 +16,29 @@ package collectorwebhook
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
+	batchv1 "k8s.io/api/batch/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	controllerruntime "sigs.k8s.io/controller-runtime"
+	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/open-telemetry/opentelemetry-operator/apis/v1alpha1"
+	"github.com/open-telemetry/opentelemetry-operator/controllers"
 	"github.com/open-telemetry/opentelemetry-operator/internal/config"
 	"github.com/open-telemetry/opentelemetry-operator/internal/manifests"
 	"github.com/open-telemetry/opentelemetry-operator/internal/manifests/collector"
+	"github.com/open-telemetry/opentelemetry-operator/internal/naming"
+)
+
+const (
+	maxTimeout = 20 * time.Second
+	sleepTime  = 1 * time.Second
 )
 
 var (
@@ -40,6 +50,7 @@ type Webhook struct {
 	logger logr.Logger
 	c      client.Client
 	cfg    config.Config
+	scheme *runtime.Scheme
 }
 
 func (c Webhook) Default(ctx context.Context, obj runtime.Object) error {
@@ -75,6 +86,9 @@ func (c Webhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Obje
 	if err != nil {
 		return
 	}
+	if otelcol.Spec.RunValidationJob {
+		err = c.runValidationJob(ctx, otelcol)
+	}
 	return
 }
 
@@ -100,24 +114,69 @@ func (c Webhook) runValidationJob(ctx context.Context, otelcol *v1alpha1.OpenTel
 	if err != nil {
 		return err
 	}
-	var errs []error
-	for _, desired := range desiredObjects {
-		err := c.c.Create(ctx, desired)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
+	err = controllers.ReconcileDesiredObjects(ctx, c.c, c.logger, otelcol, c.scheme, false, desiredObjects...)
+	if err != nil {
+		return err
 	}
-	return errors.Join(errs...)
+	return c.waitForStatus(ctx, otelcol)
 }
 
-func SetupCollectorValidatingWebhookWithManager(mgr controllerruntime.Manager, cfg config.Config) error {
+func (c Webhook) waitForStatus(ctx context.Context, otelcol *v1alpha1.OpenTelemetryCollector) (err error) {
+	logger := c.logger.WithValues("logger", "waiter")
+	completed := false
+	var timeWaited time.Duration
+	configHash := collector.GetConfigMapSHA(otelcol.Spec.Config)
+	jobName := naming.Job(otelcol.Name, configHash)
+	nsn := types.NamespacedName{Namespace: otelcol.Namespace, Name: jobName}
+	logger.Info("attempting to get", "nsn", nsn)
+	for !completed {
+		if timeWaited > maxTimeout {
+			err = fmt.Errorf("%s timed out, check pod logs or disable validation", jobName)
+			logger.Error(err, "timed out")
+			completed = true
+		}
+		job := batchv1.Job{}
+		err = c.c.Get(ctx, nsn, &job)
+		if apierrors.IsNotFound(err) {
+			timeWaited += sleepTime
+			time.Sleep(sleepTime)
+			logger.Info("job not found yet...")
+			continue
+		}
+		if err != nil {
+			logger.Error(err, "failed to get")
+			return
+		}
+		logger.Info("showing status...", "status", job.Status)
+		if job.Status.Succeeded > 0 {
+			completed = true
+		}
+		if job.Status.Failed > 0 {
+			err = fmt.Errorf("%s has failed, check pod logs", job.Name)
+			completed = true
+		}
+		if job.Status.Active == 0 && job.Status.Succeeded == 0 && job.Status.Failed == 0 {
+			logger.Info("job hasn't started yet", "job", job.Name)
+		}
+		if job.Status.Active > 0 {
+			logger.Info("job is still running", "job", job.Name)
+		}
+		// The job hasn't finished yet, sleep to backoff.
+		timeWaited += sleepTime
+		time.Sleep(sleepTime)
+	}
+	logger.Info("completed")
+	return
+}
+
+func SetupCollectorValidatingWebhookWithManager(mgr ctrl.Manager, cfg config.Config) error {
 	cvw := &Webhook{
 		c:      mgr.GetClient(),
 		logger: mgr.GetLogger().WithValues("handler", "Webhook"),
+		scheme: mgr.GetScheme(),
 		cfg:    cfg,
 	}
-	return controllerruntime.NewWebhookManagedBy(mgr).
+	return ctrl.NewWebhookManagedBy(mgr).
 		For(&v1alpha1.OpenTelemetryCollector{}).
 		WithValidator(cvw).
 		WithDefaulter(cvw).

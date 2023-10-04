@@ -4,7 +4,7 @@ kind: OpenTelemetryCollector
 metadata:
   name: simplest
 spec:
-  run_validation_job: true
+  runValidationJob: true
   config: |
     receivers:
       jaeger:
