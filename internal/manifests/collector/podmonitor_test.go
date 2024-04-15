@@ -63,6 +63,7 @@ func TestDesiredPodMonitorsWithPrometheus(t *testing.T) {
 	assert.NotNil(t, actual)
 	assert.Equal(t, fmt.Sprintf("%s-collector", params.OtelCol.Name), actual.Name)
 	assert.Equal(t, params.OtelCol.Namespace, actual.Namespace)
+	assert.Len(t, actual.Spec.PodMetricsEndpoints, 3)
 	assert.Equal(t, "monitoring", actual.Spec.PodMetricsEndpoints[0].Port)
 	assert.Equal(t, "prometheus-dev", actual.Spec.PodMetricsEndpoints[1].Port)
 	assert.Equal(t, "prometheus-prod", actual.Spec.PodMetricsEndpoints[2].Port)

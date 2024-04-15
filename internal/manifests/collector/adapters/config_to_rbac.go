@@ -22,7 +22,7 @@ import (
 )
 
 // ConfigToRBAC parses the OpenTelemetry Collector configuration and checks what RBAC resources are needed to be created.
-func ConfigToRBAC(logger logr.Logger, config map[interface{}]interface{}) []rbacv1.PolicyRule {
+func ConfigToRBAC(logger logr.Logger, config map[string]interface{}) []rbacv1.PolicyRule {
 	var policyRules []rbacv1.PolicyRule
 	processorsRaw, ok := config["processors"]
 	if !ok {
@@ -30,7 +30,7 @@ func ConfigToRBAC(logger logr.Logger, config map[interface{}]interface{}) []rbac
 		return policyRules
 	}
 
-	processors, ok := processorsRaw.(map[interface{}]interface{})
+	processors, ok := processorsRaw.(map[string]interface{})
 	if !ok {
 		logger.V(2).Info("processors doesn't contain valid components")
 		return policyRules
@@ -43,16 +43,15 @@ func ConfigToRBAC(logger logr.Logger, config map[interface{}]interface{}) []rbac
 			continue
 		}
 
-		processorCfg, ok := val.(map[interface{}]interface{})
+		processorCfg, ok := val.(map[string]interface{})
 		if !ok {
 			logger.V(2).Info("processor doesn't seem to be a map of properties", "processor", key)
-			processorCfg = map[interface{}]interface{}{}
+			processorCfg = map[string]interface{}{}
 		}
 
-		processorName := key.(string)
-		processorParser, err := processor.For(logger, processorName, processorCfg)
+		processorParser, err := processor.For(logger, key, processorCfg)
 		if err != nil {
-			logger.V(2).Info("no parser found for", "processor", processorName)
+			logger.V(2).Info("no parser found for", "processor", key)
 			continue
 		}
 

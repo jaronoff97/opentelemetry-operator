@@ -48,12 +48,12 @@ const (
 )
 
 // ConfigToContainerProbe converts the incoming configuration object into a container probe or returns an error.
-func ConfigToContainerProbe(config map[interface{}]interface{}) (*corev1.Probe, error) {
+func ConfigToContainerProbe(config map[string]interface{}) (*corev1.Probe, error) {
 	serviceProperty, withService := config["service"]
 	if !withService {
 		return nil, errNoService
 	}
-	service, withSvcProperty := serviceProperty.(map[interface{}]interface{})
+	service, withSvcProperty := serviceProperty.(map[string]interface{})
 	if !withSvcProperty {
 		return nil, errServiceNotAMap
 	}
@@ -83,7 +83,7 @@ func ConfigToContainerProbe(config map[interface{}]interface{}) (*corev1.Probe, 
 	if !ok {
 		return nil, errNoExtensions
 	}
-	extensions, ok := extensionsProperty.(map[interface{}]interface{})
+	extensions, ok := extensionsProperty.(map[string]interface{})
 	if !ok {
 		return nil, errExtensionsNotAMap
 	}
@@ -111,7 +111,7 @@ func createProbeFromExtension(extension interface{}) (*corev1.Probe, error) {
 }
 
 func extractProbeConfigurationFromExtension(ext interface{}) probeConfiguration {
-	extensionCfg, ok := ext.(map[interface{}]interface{})
+	extensionCfg, ok := ext.(map[string]interface{})
 	if !ok {
 		return defaultProbeConfiguration()
 	}
@@ -128,7 +128,7 @@ func defaultProbeConfiguration() probeConfiguration {
 	}
 }
 
-func extractPathFromExtensionConfig(cfg map[interface{}]interface{}) string {
+func extractPathFromExtensionConfig(cfg map[string]interface{}) string {
 	if path, ok := cfg["path"]; ok {
 		if parsedPath, ok := path.(string); ok {
 			return parsedPath
@@ -137,7 +137,7 @@ func extractPathFromExtensionConfig(cfg map[interface{}]interface{}) string {
 	return defaultHealthCheckPath
 }
 
-func extractPortFromExtensionConfig(cfg map[interface{}]interface{}) intstr.IntOrString {
+func extractPortFromExtensionConfig(cfg map[string]interface{}) intstr.IntOrString {
 	endpoint, ok := cfg["endpoint"]
 	if !ok {
 		return defaultHealthCheckEndpoint()

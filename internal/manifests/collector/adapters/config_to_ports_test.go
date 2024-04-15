@@ -186,17 +186,17 @@ func TestParserFailed(t *testing.T) {
 			return nil, errors.New("mocked error")
 		},
 	}
-	receiver.Register("mock", func(logger logr.Logger, name string, config map[interface{}]interface{}) parser.ComponentPortParser {
+	receiver.Register("mock", func(logger logr.Logger, name string, config map[string]interface{}) parser.ComponentPortParser {
 		return mockParser
 	})
 
-	config := map[interface{}]interface{}{
-		"receivers": map[interface{}]interface{}{
+	config := map[string]interface{}{
+		"receivers": map[string]interface{}{
 			"mock": map[string]interface{}{},
 		},
-		"service": map[interface{}]interface{}{
-			"pipelines": map[interface{}]interface{}{
-				"metrics": map[interface{}]interface{}{
+		"service": map[string]interface{}{
+			"pipelines": map[string]interface{}{
+				"metrics": map[string]interface{}{
 					"receivers": []interface{}{"mock"},
 				},
 			},

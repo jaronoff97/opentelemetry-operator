@@ -28,8 +28,8 @@ var (
 
 // ConfigFromString extracts a configuration map from the given string.
 // If the given string isn't a valid YAML, ErrInvalidYAML is returned.
-func ConfigFromString(configStr string) (map[interface{}]interface{}, error) {
-	config := make(map[interface{}]interface{})
+func ConfigFromString(configStr string) (map[string]interface{}, error) {
+	config := make(map[string]interface{})
 	if err := yaml.Unmarshal([]byte(configStr), &config); err != nil {
 		return nil, ErrInvalidYAML
 	}

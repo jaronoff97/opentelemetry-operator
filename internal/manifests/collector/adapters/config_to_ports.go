@@ -43,7 +43,7 @@ func (c ComponentType) String() string {
 }
 
 // ConfigToComponentPorts converts the incoming configuration object into a set of service ports required by the exporters.
-func ConfigToComponentPorts(logger logr.Logger, cType ComponentType, config map[interface{}]interface{}) ([]v1beta1.PortsSpec, error) {
+func ConfigToComponentPorts(logger logr.Logger, cType ComponentType, config map[string]interface{}) ([]v1beta1.PortsSpec, error) {
 	// now, we gather which ports we might need to open
 	// for that, we get all the exporters and check their `endpoint` properties,
 	// extracting the port from it. The port name has to be a "DNS_LABEL", so, we try to make it follow the pattern:
@@ -81,32 +81,31 @@ func ConfigToComponentPorts(logger logr.Logger, cType ComponentType, config map[
 		if !compEnabled[key] {
 			continue
 		}
-		exporter, ok := val.(map[interface{}]interface{})
+		component, ok := val.(map[string]interface{})
 		if !ok {
 			logger.V(2).Info("component doesn't seem to be a map of properties", cType.String(), key)
-			exporter = map[interface{}]interface{}{}
+			component = map[string]interface{}{}
 		}
-
 		cmptName := key.(string)
 		var cmptParser parser.ComponentPortParser
 		var err error
 		switch cType {
 		case ComponentTypeExporter:
-			cmptParser, err = exporterParser.For(logger, cmptName, exporter)
+			cmptParser, err = exporterParser.For(logger, cmptName, component)
 		case ComponentTypeReceiver:
-			cmptParser, err = receiverParser.For(logger, cmptName, exporter)
+			cmptParser, err = receiverParser.For(logger, cmptName, component)
 		case ComponentTypeProcessor:
 			logger.V(4).Info("processors don't provide a way to enable associated ports", "name", key)
 		}
 
 		if err != nil {
-			logger.V(2).Info("no parser found for", "component", cmptName)
+			logger.V(2).Info("no parser found for", "component", key)
 			continue
 		}
 
 		exprtPorts, err := cmptParser.Ports()
 		if err != nil {
-			logger.Error(err, "parser for '%s' has returned an error: %w", cmptName, err)
+			logger.Error(err, "parser for '%s' has returned an error: %w", key, err)
 			continue
 		}
 
@@ -129,14 +128,14 @@ func ConfigToComponentPorts(logger logr.Logger, cType ComponentType, config map[
 	return patchedPorts, nil
 }
 
-func ConfigToPorts(logger logr.Logger, config map[interface{}]interface{}) ([]v1beta1.PortsSpec, error) {
-	ports, err := ConfigToComponentPorts(logger, ComponentTypeReceiver, config)
+func ConfigToPorts(logger logr.Logger, config v1beta1.Config) ([]v1beta1.PortsSpec, error) {
+	ports, err := ConfigToComponentPorts(logger, ComponentTypeReceiver, config.Receivers.Object)
 	if err != nil {
 		logger.Error(err, "there was a problem while getting the ports from the receivers")
 		return nil, err
 	}
 
-	exporterPorts, err := ConfigToComponentPorts(logger, ComponentTypeExporter, config)
+	exporterPorts, err := ConfigToComponentPorts(logger, ComponentTypeExporter, config.Exporters.Object)
 	if err != nil {
 		logger.Error(err, "there was a problem while getting the ports from the exporters")
 		return nil, err
