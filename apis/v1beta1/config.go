@@ -245,6 +245,18 @@ func (s *Service) GetTelemetry() *Telemetry {
 	return t
 }
 
+func GetOrDefault[T any](c *AnyConfig, key string, d T) T {
+	if c == nil || c.Object == nil {
+		return d
+	}
+	if v, ok := c.Object[key]; ok {
+		if converted, ok := v.(T); ok {
+			return converted
+		}
+	}
+	return d
+}
+
 func hasNullValue(cfg map[string]interface{}) []string {
 	var nullKeys []string
 	for k, v := range cfg {
