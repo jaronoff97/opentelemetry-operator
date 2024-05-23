@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -41,6 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/open-telemetry/opentelemetry-operator/apis/v1alpha1"
+	"github.com/open-telemetry/opentelemetry-operator/apis/v1beta1"
 	"github.com/open-telemetry/opentelemetry-operator/cmd/operator-opamp-bridge/logger"
 )
 
@@ -106,6 +108,15 @@ func NewConfig(logger logr.Logger) *Config {
 	}
 }
 
+func componentTypeFromString(c string) (v1beta1.ComponentType, bool) {
+	for i, s := range []string{"receiver", "exporter", "processor"} {
+		if strings.EqualFold(s, c) {
+			return v1beta1.ComponentType(i), true
+		}
+	}
+	return v1beta1.ComponentType(0), false
+}
+
 func (c *Config) CreateClient() opampclient.OpAMPClient {
 	opampLogger := logger.NewLogger(c.RootLogger.WithName("client"))
 	agentScheme := c.GetAgentScheme()
@@ -115,14 +126,20 @@ func (c *Config) CreateClient() opampclient.OpAMPClient {
 	return opampclient.NewWebSocket(opampLogger)
 }
 
-func (c *Config) GetComponentsAllowed() map[string]map[string]bool {
-	m := make(map[string]map[string]bool)
+func (c *Config) GetComponentsAllowed() map[v1beta1.ComponentType]map[string]bool {
+	m := make(map[v1beta1.ComponentType]map[string]bool)
 	for component, componentSet := range c.ComponentsAllowed {
-		if _, ok := m[component]; !ok {
-			m[component] = make(map[string]bool)
+		var cType v1beta1.ComponentType
+		if c, ok := componentTypeFromString(component); ok {
+			cType = c
+		} else {
+			continue
+		}
+		if _, ok := m[cType]; !ok {
+			m[cType] = make(map[string]bool)
 		}
 		for _, s := range componentSet {
-			m[component][s] = true
+			m[cType][s] = true
 		}
 	}
 	return m

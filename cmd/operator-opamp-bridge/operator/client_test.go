@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
 
-	"github.com/open-telemetry/opentelemetry-operator/apis/v1alpha1"
+	"github.com/open-telemetry/opentelemetry-operator/apis/v1beta1"
 )
 
 var (
@@ -44,9 +44,9 @@ const (
 
 func getFakeClient(t *testing.T, lists ...client.ObjectList) client.WithWatch {
 	schemeBuilder := runtime.NewSchemeBuilder(func(s *runtime.Scheme) error {
-		s.AddKnownTypes(v1alpha1.GroupVersion, &v1alpha1.OpenTelemetryCollector{}, &v1alpha1.OpenTelemetryCollectorList{})
+		s.AddKnownTypes(v1beta1.GroupVersion, &v1beta1.OpenTelemetryCollector{}, &v1beta1.OpenTelemetryCollectorList{})
 		s.AddKnownTypes(v1.SchemeGroupVersion, &v1.Pod{}, &v1.PodList{})
-		metav1.AddToGroupVersion(s, v1alpha1.GroupVersion)
+		metav1.AddToGroupVersion(s, v1beta1.GroupVersion)
 		return nil
 	})
 	scheme := runtime.NewScheme()
@@ -153,11 +153,11 @@ func Test_collectorUpdate(t *testing.T) {
 	// Load reporting-only collector
 	reportingColConfig, err := loadConfig("testdata/reporting-collector.yaml")
 	require.NoError(t, err, "Should be no error on loading test configuration")
-	var reportingCol v1alpha1.OpenTelemetryCollector
+	var reportingCol v1beta1.OpenTelemetryCollector
 	err = yaml.Unmarshal(reportingColConfig, &reportingCol)
 	require.NoError(t, err, "Should be no error on unmarshal")
 	reportingCol.TypeMeta.Kind = CollectorResource
-	reportingCol.TypeMeta.APIVersion = v1alpha1.GroupVersion.String()
+	reportingCol.TypeMeta.APIVersion = v1beta1.GroupVersion.String()
 	reportingCol.ObjectMeta.Name = "simplest"
 	reportingCol.ObjectMeta.Namespace = namespace
 	err = fakeClient.Create(context.Background(), &reportingCol)

@@ -23,12 +23,13 @@ import (
 	"github.com/open-telemetry/opamp-go/protobufs"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	"github.com/open-telemetry/opentelemetry-operator/apis/v1alpha1"
+	"github.com/open-telemetry/opentelemetry-operator/apis/v1beta1"
 )
 
 const (
@@ -44,13 +45,13 @@ type ConfigApplier interface {
 	Apply(name string, namespace string, configmap *protobufs.AgentConfigFile) error
 
 	// GetInstance retrieves an OpenTelemetryCollector CRD given a name and namespace.
-	GetInstance(name string, namespace string) (*v1alpha1.OpenTelemetryCollector, error)
+	GetInstance(name string, namespace string) (*v1beta1.OpenTelemetryCollector, error)
 
 	// GetCollectorPods retrieves all pods that match the given collector's selector labels and namespace.
 	GetCollectorPods(selectorLabels map[string]string, namespace string) (*v1.PodList, error)
 
 	// ListInstances retrieves all OpenTelemetryCollector CRDs created by the operator-opamp-bridge agent.
-	ListInstances() ([]v1alpha1.OpenTelemetryCollector, error)
+	ListInstances() ([]v1beta1.OpenTelemetryCollector, error)
 
 	// Delete attempts to delete an OpenTelemetryCollector object given a name and namespace.
 	Delete(name string, namespace string) error
@@ -58,7 +59,7 @@ type ConfigApplier interface {
 
 type Client struct {
 	log               logr.Logger
-	componentsAllowed map[string]map[string]bool
+	componentsAllowed map[v1beta1.ComponentType]map[string]bool
 	k8sClient         client.Client
 	close             chan bool
 	name              string
@@ -66,7 +67,7 @@ type Client struct {
 
 var _ ConfigApplier = &Client{}
 
-func NewClient(name string, log logr.Logger, c client.Client, componentsAllowed map[string]map[string]bool) *Client {
+func NewClient(name string, log logr.Logger, c client.Client, componentsAllowed map[v1beta1.ComponentType]map[string]bool) *Client {
 	return &Client{
 		log:               log,
 		componentsAllowed: componentsAllowed,
@@ -76,20 +77,20 @@ func NewClient(name string, log logr.Logger, c client.Client, componentsAllowed 
 	}
 }
 
-func (c Client) labelSetContainsLabel(instance *v1alpha1.OpenTelemetryCollector, label, value string) bool {
-	if instance == nil || instance.GetLabels() == nil {
+func (c Client) labelSetContainsLabel(instance metav1.ObjectMeta, label, value string) bool {
+	if instance.GetLabels() == nil {
 		return false
 	}
-	if labels := instance.GetLabels(); labels != nil && strings.EqualFold(labels[label], value) {
+	if instanceLabels := instance.GetLabels(); instanceLabels != nil && strings.EqualFold(instanceLabels[label], value) {
 		return true
 	}
 	return false
 }
 
-func (c Client) create(ctx context.Context, name string, namespace string, collector *v1alpha1.OpenTelemetryCollector) error {
+func (c Client) create(ctx context.Context, name string, namespace string, collector *v1beta1.OpenTelemetryCollector) error {
 	// Set the defaults
 	collector.TypeMeta.Kind = CollectorResource
-	collector.TypeMeta.APIVersion = v1alpha1.GroupVersion.String()
+	collector.TypeMeta.APIVersion = v1beta1.GroupVersion.String()
 	collector.ObjectMeta.Name = name
 	collector.ObjectMeta.Namespace = namespace
 
@@ -101,7 +102,7 @@ func (c Client) create(ctx context.Context, name string, namespace string, colle
 	return c.k8sClient.Create(ctx, collector)
 }
 
-func (c Client) update(ctx context.Context, old *v1alpha1.OpenTelemetryCollector, new *v1alpha1.OpenTelemetryCollector) error {
+func (c Client) update(ctx context.Context, old *v1beta1.OpenTelemetryCollector, new *v1beta1.OpenTelemetryCollector) error {
 	new.ObjectMeta = old.ObjectMeta
 	new.TypeMeta = old.TypeMeta
 	c.log.Info("Updating collector")
@@ -110,13 +111,10 @@ func (c Client) update(ctx context.Context, old *v1alpha1.OpenTelemetryCollector
 
 func (c Client) Apply(name string, namespace string, configmap *protobufs.AgentConfigFile) error {
 	c.log.Info("Received new config", "name", name, "namespace", namespace)
-	var collector v1alpha1.OpenTelemetryCollector
+	var collector v1beta1.OpenTelemetryCollector
 	err := yaml.Unmarshal(configmap.Body, &collector)
 	if err != nil {
 		return err
-	}
-	if len(collector.Spec.Config) == 0 {
-		return errors.NewBadRequest("Must supply valid configuration")
 	}
 	reasons, validateErr := c.validate(collector.Spec)
 	if validateErr != nil {
@@ -130,17 +128,19 @@ func (c Client) Apply(name string, namespace string, configmap *protobufs.AgentC
 	instance, err := c.GetInstance(name, namespace)
 	if err != nil {
 		return err
+	} else if instance == nil {
+		return errors.NewBadRequest("v1beta1 collector not found")
 	}
 	// If either the received collector or the collector being created has reporting set to true, it should be denied
-	if c.labelSetContainsLabel(instance, ReportingLabelKey, "true") ||
-		c.labelSetContainsLabel(updatedCollector, ReportingLabelKey, "true") {
+	if c.labelSetContainsLabel(instance.ObjectMeta, ReportingLabelKey, "true") ||
+		c.labelSetContainsLabel(updatedCollector.ObjectMeta, ReportingLabelKey, "true") {
 		return errors.NewBadRequest("cannot modify a collector with `opentelemetry.io/opamp-reporting: true`")
 	}
 	// If either the received collector or the collector doesn't have the managed label set to true, it should be denied
-	if !c.labelSetContainsLabel(instance, ManagedLabelKey, "true") &&
-		!c.labelSetContainsLabel(instance, ManagedLabelKey, c.name) &&
-		!c.labelSetContainsLabel(updatedCollector, ManagedLabelKey, "true") &&
-		!c.labelSetContainsLabel(updatedCollector, ManagedLabelKey, c.name) {
+	if !c.labelSetContainsLabel(instance.ObjectMeta, ManagedLabelKey, "true") &&
+		!c.labelSetContainsLabel(instance.ObjectMeta, ManagedLabelKey, c.name) &&
+		!c.labelSetContainsLabel(updatedCollector.ObjectMeta, ManagedLabelKey, "true") &&
+		!c.labelSetContainsLabel(updatedCollector.ObjectMeta, ManagedLabelKey, c.name) {
 		return errors.NewBadRequest("cannot modify a collector that doesn't have `opentelemetry.io/opamp-managed: true | <bridge-name>` set")
 	}
 	if instance == nil {
@@ -151,7 +151,7 @@ func (c Client) Apply(name string, namespace string, configmap *protobufs.AgentC
 
 func (c Client) Delete(name string, namespace string) error {
 	ctx := context.Background()
-	result := v1alpha1.OpenTelemetryCollector{}
+	result := v1beta1.OpenTelemetryCollector{}
 	err := c.k8sClient.Get(ctx, client.ObjectKey{
 		Namespace: namespace,
 		Name:      name,
@@ -165,9 +165,9 @@ func (c Client) Delete(name string, namespace string) error {
 	return c.k8sClient.Delete(ctx, &result)
 }
 
-func (c Client) ListInstances() ([]v1alpha1.OpenTelemetryCollector, error) {
+func (c Client) ListInstances() ([]v1beta1.OpenTelemetryCollector, error) {
 	ctx := context.Background()
-	result := v1alpha1.OpenTelemetryCollectorList{}
+	result := v1beta1.OpenTelemetryCollectorList{}
 	labelSelector := labels.NewSelector()
 	requirement, err := labels.NewRequirement(ManagedLabelKey, selection.In, []string{c.name, "true"})
 	if err != nil {
@@ -177,7 +177,7 @@ func (c Client) ListInstances() ([]v1alpha1.OpenTelemetryCollector, error) {
 	if err != nil {
 		return nil, err
 	}
-	reportingCollectors := v1alpha1.OpenTelemetryCollectorList{}
+	reportingCollectors := v1beta1.OpenTelemetryCollectorList{}
 	err = c.k8sClient.List(ctx, &reportingCollectors, client.MatchingLabels{
 		ReportingLabelKey: "true",
 	})
@@ -192,9 +192,9 @@ func (c Client) ListInstances() ([]v1alpha1.OpenTelemetryCollector, error) {
 	return items, nil
 }
 
-func (c Client) GetInstance(name string, namespace string) (*v1alpha1.OpenTelemetryCollector, error) {
+func (c Client) GetInstance(name string, namespace string) (*v1beta1.OpenTelemetryCollector, error) {
 	ctx := context.Background()
-	result := v1alpha1.OpenTelemetryCollector{}
+	result := v1beta1.OpenTelemetryCollector{}
 	err := c.k8sClient.Get(ctx, client.ObjectKey{
 		Namespace: namespace,
 		Name:      name,
@@ -215,32 +215,27 @@ func (c Client) GetCollectorPods(selectorLabels map[string]string, namespace str
 	return podList, err
 }
 
-func (c Client) validate(spec v1alpha1.OpenTelemetryCollectorSpec) ([]string, error) {
+func (c Client) getInvalidComponents(conf map[string]interface{}, cType v1beta1.ComponentType) []string {
+	var invalidComponents []string
+	for componentName := range conf {
+		if _, ok := c.componentsAllowed[cType]; !ok {
+			invalidComponents = append(invalidComponents, cType.String())
+			continue
+		}
+		if _, ok := c.componentsAllowed[cType][componentName]; !ok {
+			invalidComponents = append(invalidComponents, fmt.Sprintf("%s.%s", cType.String(), componentName))
+		}
+	}
+	return invalidComponents
+}
+
+func (c Client) validate(spec v1beta1.OpenTelemetryCollectorSpec) ([]string, error) {
 	// Do not use this feature if it's not specified
 	if c.componentsAllowed == nil || len(c.componentsAllowed) == 0 {
 		return nil, nil
 	}
-	collectorConfig := make(map[string]map[string]interface{})
-	err := yaml.Unmarshal([]byte(spec.Config), &collectorConfig)
-	if err != nil {
-		return nil, err
-	}
-	var invalidComponents []string
-	for component, componentMap := range collectorConfig {
-		if component == "service" {
-			// We don't care about what's in the service pipelines.
-			// Only components declared in the configuration can be used in the service pipeline.
-			continue
-		}
-		if _, ok := c.componentsAllowed[component]; !ok {
-			invalidComponents = append(invalidComponents, component)
-			continue
-		}
-		for componentName := range componentMap {
-			if _, ok := c.componentsAllowed[component][componentName]; !ok {
-				invalidComponents = append(invalidComponents, fmt.Sprintf("%s.%s", component, componentName))
-			}
-		}
-	}
+	invalidComponents := c.getInvalidComponents(spec.Config.Receivers.Object, v1beta1.ComponentTypeReceiver)
+	invalidComponents = append(invalidComponents, c.getInvalidComponents(spec.Config.Processors.Object, v1beta1.ComponentTypeProcessor)...)
+	invalidComponents = append(invalidComponents, c.getInvalidComponents(spec.Config.Exporters.Object, v1beta1.ComponentTypeExporter)...)
 	return invalidComponents, nil
 }
