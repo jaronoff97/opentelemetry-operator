@@ -92,7 +92,7 @@ func (s *SingleEndpointParser) ParserName() string {
 	return fmt.Sprintf("__%s", s.name)
 }
 
-func NewSinglePortParser(name string, port int32, opts ...PortBuilderOption) *SingleEndpointParser {
+func NewSinglePortParser(name string, port int32, opts ...PortBuilderOption) ComponentPortParser {
 	servicePort := &corev1.ServicePort{
 		Name: naming.PortName(name, port),
 		Port: port,
@@ -104,7 +104,7 @@ func NewSinglePortParser(name string, port int32, opts ...PortBuilderOption) *Si
 }
 
 // NewSilentSinglePortParser returns a SingleEndpointParser that errors silently on failure to find a port.
-func NewSilentSinglePortParser(name string, port int32, opts ...PortBuilderOption) *SingleEndpointParser {
+func NewSilentSinglePortParser(name string, port int32, opts ...PortBuilderOption) ComponentPortParser {
 	servicePort := &corev1.ServicePort{
 		Name: naming.PortName(name, port),
 		Port: port,

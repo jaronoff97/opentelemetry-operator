@@ -29,6 +29,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
+
+	"github.com/open-telemetry/opentelemetry-operator/pkg/constants"
 )
 
 func TestConfigFiles(t *testing.T) {
@@ -288,19 +290,19 @@ func TestConfig_GetEnabledComponents(t *testing.T) {
 	tests := []struct {
 		name string
 		file string
-		want map[ComponentType]map[string]interface{}
+		want map[constants.ComponentType]map[string]interface{}
 	}{
 
 		{
 			name: "connectors",
 			file: "testdata/otelcol-connectors.yaml",
-			want: map[ComponentType]map[string]interface{}{
-				ComponentTypeReceiver: {
+			want: map[constants.ComponentType]map[string]interface{}{
+				constants.ComponentTypeReceiver: {
 					"foo":   struct{}{},
 					"count": struct{}{},
 				},
-				ComponentTypeProcessor: {},
-				ComponentTypeExporter: {
+				constants.ComponentTypeProcessor: {},
+				constants.ComponentTypeExporter: {
 					"bar":   struct{}{},
 					"count": struct{}{},
 				},
@@ -309,16 +311,16 @@ func TestConfig_GetEnabledComponents(t *testing.T) {
 		{
 			name: "couchbase",
 			file: "testdata/otelcol-couchbase.yaml",
-			want: map[ComponentType]map[string]interface{}{
-				ComponentTypeReceiver: {
+			want: map[constants.ComponentType]map[string]interface{}{
+				constants.ComponentTypeReceiver: {
 					"prometheus/couchbase": struct{}{},
 				},
-				ComponentTypeProcessor: {
+				constants.ComponentTypeProcessor: {
 					"filter/couchbase":           struct{}{},
 					"metricstransform/couchbase": struct{}{},
 					"transform/couchbase":        struct{}{},
 				},
-				ComponentTypeExporter: {
+				constants.ComponentTypeExporter: {
 					"prometheus": struct{}{},
 				},
 			},
@@ -326,14 +328,14 @@ func TestConfig_GetEnabledComponents(t *testing.T) {
 		{
 			name: "demo",
 			file: "testdata/otelcol-demo.yaml",
-			want: map[ComponentType]map[string]interface{}{
-				ComponentTypeReceiver: {
+			want: map[constants.ComponentType]map[string]interface{}{
+				constants.ComponentTypeReceiver: {
 					"otlp": struct{}{},
 				},
-				ComponentTypeProcessor: {
+				constants.ComponentTypeProcessor: {
 					"batch": struct{}{},
 				},
-				ComponentTypeExporter: {
+				constants.ComponentTypeExporter: {
 					"debug":      struct{}{},
 					"zipkin":     struct{}{},
 					"otlp":       struct{}{},
@@ -344,12 +346,12 @@ func TestConfig_GetEnabledComponents(t *testing.T) {
 		{
 			name: "extensions",
 			file: "testdata/otelcol-extensions.yaml",
-			want: map[ComponentType]map[string]interface{}{
-				ComponentTypeReceiver: {
+			want: map[constants.ComponentType]map[string]interface{}{
+				constants.ComponentTypeReceiver: {
 					"otlp": struct{}{},
 				},
-				ComponentTypeProcessor: {},
-				ComponentTypeExporter: {
+				constants.ComponentTypeProcessor: {},
+				constants.ComponentTypeExporter: {
 					"otlp/auth": struct{}{},
 				},
 			},
@@ -357,12 +359,12 @@ func TestConfig_GetEnabledComponents(t *testing.T) {
 		{
 			name: "filelog",
 			file: "testdata/otelcol-filelog.yaml",
-			want: map[ComponentType]map[string]interface{}{
-				ComponentTypeReceiver: {
+			want: map[constants.ComponentType]map[string]interface{}{
+				constants.ComponentTypeReceiver: {
 					"filelog": struct{}{},
 				},
-				ComponentTypeProcessor: {},
-				ComponentTypeExporter: {
+				constants.ComponentTypeProcessor: {},
+				constants.ComponentTypeExporter: {
 					"debug": struct{}{},
 				},
 			},
@@ -370,10 +372,10 @@ func TestConfig_GetEnabledComponents(t *testing.T) {
 		{
 			name: "null",
 			file: "testdata/otelcol-null-values.yaml",
-			want: map[ComponentType]map[string]interface{}{
-				ComponentTypeReceiver:  {},
-				ComponentTypeProcessor: {},
-				ComponentTypeExporter:  {},
+			want: map[constants.ComponentType]map[string]interface{}{
+				constants.ComponentTypeReceiver:  {},
+				constants.ComponentTypeProcessor: {},
+				constants.ComponentTypeExporter:  {},
 			},
 		},
 	}

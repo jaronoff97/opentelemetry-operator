@@ -23,6 +23,8 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/open-telemetry/opentelemetry-operator/pkg/constants"
 )
 
 var (
@@ -92,7 +94,8 @@ func PortFromEndpoint(endpoint string) (int32, error) {
 	return int32(port), err
 }
 
-type ParserRetriever func(string) ComponentPortParser
+type SinglePortBuilder func(name string, port int32, opts ...PortBuilderOption) ComponentPortParser
+type PortsRetriever func(logger logr.Logger, name string, config interface{}) ([]corev1.ServicePort, error)
 
 type ComponentPortParser interface {
 	// Ports returns the service ports parsed based on the component's configuration where name is the component's name
@@ -106,6 +109,52 @@ type ComponentPortParser interface {
 	ParserName() string
 }
 
+// registry holds a record of all known receiver parsers.
+var registry = make(map[constants.ComponentType]map[string]ComponentPortParser)
+
+// defaulter holds a generator for a default parser
+var defaulter = make(map[constants.ComponentType]SinglePortBuilder)
+
+// RegisterDefaulter registers a default ports cType for a given component type
+func RegisterDefaulter(cType constants.ComponentType, p SinglePortBuilder) {
+	defaulter[cType] = p
+}
+
+// Register adds a new parser builder to the list of known builders.
+func Register(cType constants.ComponentType, p ComponentPortParser) {
+	if registry[cType] == nil {
+		registry[cType] = make(map[string]ComponentPortParser)
+	}
+	registry[cType][p.ParserType()] = p
+}
+
+// IsRegistered checks whether a parser is registered with the given name.
+func IsRegistered(cType constants.ComponentType, name string) bool {
+	if _, ok := registry[cType]; !ok {
+		return false
+	}
+	_, ok := registry[cType][ComponentType(name)]
+	return ok
+}
+
+// PortsFor retrieves the parser for the given name and gets the ports from the given config
+func PortsFor(logger logr.Logger, cType constants.ComponentType, name string, config interface{}) ([]corev1.ServicePort, error) {
+	return ParserFor(cType, name).Ports(logger, name, config)
+}
+
+// ParserFor returns a parser builder for the given name and type.
+func ParserFor(cType constants.ComponentType, name string) ComponentPortParser {
+	if IsRegistered(cType, name) {
+		return registry[cType][ComponentType(name)]
+	}
+	defaulter, ok := defaulter[cType]
+	if !ok {
+		// give a default if nothing is set
+		return NewSinglePortParser(ComponentType(name), UnsetPort)
+	}
+	return defaulter(ComponentType(name), UnsetPort)
+}
+
 func ConstructServicePort(current *corev1.ServicePort, port int32) corev1.ServicePort {
 	return corev1.ServicePort{
 		Name:        current.Name,
@@ -117,11 +166,10 @@ func ConstructServicePort(current *corev1.ServicePort, port int32) corev1.Servic
 	}
 }
 
-func GetPortsForConfig(logger logr.Logger, config map[string]interface{}, retriever ParserRetriever) ([]corev1.ServicePort, error) {
+func GetPortsForConfig(logger logr.Logger, config map[string]interface{}, cType constants.ComponentType) ([]corev1.ServicePort, error) {
 	var ports []corev1.ServicePort
 	for componentName, componentDef := range config {
-		parser := retriever(componentName)
-		if parsedPorts, err := parser.Ports(logger, componentName, componentDef); err != nil {
+		if parsedPorts, err := PortsFor(logger, cType, componentName, componentDef); err != nil {
 			return nil, err
 		} else {
 			ports = append(ports, parsedPorts...)
