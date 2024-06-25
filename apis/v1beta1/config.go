@@ -29,21 +29,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/open-telemetry/opentelemetry-operator/internal/components"
-	"github.com/open-telemetry/opentelemetry-operator/internal/components/exporters"
-	"github.com/open-telemetry/opentelemetry-operator/internal/components/receivers"
+	_ "github.com/open-telemetry/opentelemetry-operator/internal/components/exporters"
+	_ "github.com/open-telemetry/opentelemetry-operator/internal/components/receivers"
+	"github.com/open-telemetry/opentelemetry-operator/pkg/constants"
 )
-
-type ComponentType int
-
-const (
-	ComponentTypeReceiver ComponentType = iota
-	ComponentTypeExporter
-	ComponentTypeProcessor
-)
-
-func (c ComponentType) String() string {
-	return [...]string{"receiver", "exporter", "processor"}[c]
-}
 
 // AnyConfig represent parts of the config.
 type AnyConfig struct {
@@ -101,24 +90,24 @@ type Pipeline struct {
 }
 
 // GetEnabledComponents constructs a list of enabled components by component type.
-func (c *Config) GetEnabledComponents() map[ComponentType]map[string]interface{} {
-	toReturn := map[ComponentType]map[string]interface{}{
-		ComponentTypeReceiver:  {},
-		ComponentTypeProcessor: {},
-		ComponentTypeExporter:  {},
+func (c *Config) GetEnabledComponents() map[constants.ComponentType]map[string]interface{} {
+	toReturn := map[constants.ComponentType]map[string]interface{}{
+		constants.ComponentTypeReceiver:  {},
+		constants.ComponentTypeProcessor: {},
+		constants.ComponentTypeExporter:  {},
 	}
 	for _, pipeline := range c.Service.Pipelines {
 		if pipeline == nil {
 			continue
 		}
 		for _, componentId := range pipeline.Receivers {
-			toReturn[ComponentTypeReceiver][componentId] = struct{}{}
+			toReturn[constants.ComponentTypeReceiver][componentId] = struct{}{}
 		}
 		for _, componentId := range pipeline.Exporters {
-			toReturn[ComponentTypeExporter][componentId] = struct{}{}
+			toReturn[constants.ComponentTypeExporter][componentId] = struct{}{}
 		}
 		for _, componentId := range pipeline.Processors {
-			toReturn[ComponentTypeProcessor][componentId] = struct{}{}
+			toReturn[constants.ComponentTypeProcessor][componentId] = struct{}{}
 		}
 	}
 	return toReturn
@@ -140,31 +129,21 @@ type Config struct {
 }
 
 // getPortsForComponentTypes gets the ports for the given ComponentType(s).
-// NOTE FOR REVIEWERS: we could also do this by introducing something in components that is aware of which retriever
-// is being used and pass the right config in where necessary...
-func (c *Config) getPortsForComponentTypes(logger logr.Logger, componentType ...ComponentType) ([]corev1.ServicePort, error) {
+func (c *Config) getPortsForComponentTypes(logger logr.Logger, componentType ...constants.ComponentType) ([]corev1.ServicePort, error) {
 	var ports []corev1.ServicePort
 	enabledComponents := c.GetEnabledComponents()
 	for _, cType := range componentType {
-		var retriever components.ParserRetriever
 		var cfg AnyConfig
 		switch cType {
-		case ComponentTypeReceiver:
-			retriever = receivers.ReceiverFor
+		case constants.ComponentTypeReceiver:
 			cfg = c.Receivers
-		case ComponentTypeExporter:
-			retriever = exporters.ParserFor
+		case constants.ComponentTypeExporter:
 			cfg = c.Exporters
-		case ComponentTypeProcessor:
+		case constants.ComponentTypeProcessor:
 			break
 		}
 		for componentName := range enabledComponents[cType] {
-			// NOTE FOR REVIEWERS:
-			// I don't love that we pass the component name in three different times here (to get the parser, to set
-			// the service name, to access in the object)
-			// Maybe in a followup this can be cleaned up?
-			parser := retriever(componentName)
-			if parsedPorts, err := parser.Ports(logger, componentName, cfg.Object[componentName]); err != nil {
+			if parsedPorts, err := components.PortsFor(logger, cType, componentName, cfg.Object[componentName]); err != nil {
 				return nil, err
 			} else {
 				ports = append(ports, parsedPorts...)
@@ -175,15 +154,15 @@ func (c *Config) getPortsForComponentTypes(logger logr.Logger, componentType ...
 }
 
 func (c *Config) GetReceiverPorts(logger logr.Logger) ([]corev1.ServicePort, error) {
-	return c.getPortsForComponentTypes(logger, ComponentTypeReceiver)
+	return c.getPortsForComponentTypes(logger, constants.ComponentTypeReceiver)
 }
 
 func (c *Config) GetExporterPorts(logger logr.Logger) ([]corev1.ServicePort, error) {
-	return c.getPortsForComponentTypes(logger, ComponentTypeExporter)
+	return c.getPortsForComponentTypes(logger, constants.ComponentTypeExporter)
 }
 
 func (c *Config) GetAllPorts(logger logr.Logger) ([]corev1.ServicePort, error) {
-	return c.getPortsForComponentTypes(logger, ComponentTypeReceiver, ComponentTypeExporter)
+	return c.getPortsForComponentTypes(logger, constants.ComponentTypeReceiver, constants.ComponentTypeExporter)
 }
 
 // Yaml encodes the current object and returns it as a string.

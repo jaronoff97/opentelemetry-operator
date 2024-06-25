@@ -24,7 +24,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/open-telemetry/opentelemetry-operator/internal/components"
-	"github.com/open-telemetry/opentelemetry-operator/internal/components/receivers"
+	_ "github.com/open-telemetry/opentelemetry-operator/internal/components/receivers"
+	"github.com/open-telemetry/opentelemetry-operator/pkg/constants"
 )
 
 func TestComponentType(t *testing.T) {
@@ -73,8 +74,8 @@ func TestReceiverParsePortFromEndpoint(t *testing.T) {
 
 func TestGetPortsForConfig(t *testing.T) {
 	type args struct {
-		config    map[string]interface{}
-		retriever components.ParserRetriever
+		config map[string]interface{}
+		cType  constants.ComponentType
 	}
 	tests := []struct {
 		name    string
@@ -85,8 +86,8 @@ func TestGetPortsForConfig(t *testing.T) {
 		{
 			name: "nothing",
 			args: args{
-				config:    nil,
-				retriever: receivers.ReceiverFor,
+				config: nil,
+				cType:  constants.ComponentTypeReceiver,
 			},
 			want:    nil,
 			wantErr: assert.NoError,
@@ -97,7 +98,7 @@ func TestGetPortsForConfig(t *testing.T) {
 				config: map[string]interface{}{
 					"test": "garbage",
 				},
-				retriever: receivers.ReceiverFor,
+				cType: constants.ComponentTypeReceiver,
 			},
 			want:    nil,
 			wantErr: assert.Error,
@@ -112,7 +113,7 @@ func TestGetPortsForConfig(t *testing.T) {
 						},
 					},
 				},
-				retriever: receivers.ReceiverFor,
+				cType: constants.ComponentTypeReceiver,
 			},
 			want: []corev1.ServicePort{
 				{
@@ -127,7 +128,7 @@ func TestGetPortsForConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := components.GetPortsForConfig(logr.Discard(), tt.args.config, tt.args.retriever)
+			got, err := components.GetPortsForConfig(logr.Discard(), tt.args.config, 0)
 			if !tt.wantErr(t, err, fmt.Sprintf("GetPortsForConfig(%v)", tt.args.config)) {
 				return
 			}

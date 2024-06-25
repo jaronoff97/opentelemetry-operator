@@ -21,7 +21,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	"github.com/open-telemetry/opentelemetry-operator/internal/components/receivers"
+	"github.com/open-telemetry/opentelemetry-operator/internal/components"
+	"github.com/open-telemetry/opentelemetry-operator/pkg/constants"
 )
 
 var (
@@ -388,17 +389,17 @@ func TestMultiEndpointReceiverParsers(t *testing.T) {
 		t.Run(tt.receiverName, func(t *testing.T) {
 			t.Run("self registers", func(t *testing.T) {
 				// verify
-				assert.True(t, receivers.IsRegistered(tt.receiverName))
+				assert.True(t, components.IsRegistered(constants.ComponentTypeReceiver, tt.receiverName))
 			})
 
 			t.Run("is found by name", func(t *testing.T) {
-				p := receivers.ReceiverFor(tt.receiverName)
+				p := components.ParserFor(constants.ComponentTypeReceiver, tt.receiverName)
 				assert.Equal(t, tt.parserName, p.ParserName())
 			})
 
 			t.Run("bad config errors", func(t *testing.T) {
 				// prepare
-				parser := receivers.ReceiverFor(tt.receiverName)
+				parser := components.ParserFor(constants.ComponentTypeReceiver, tt.receiverName)
 
 				// test
 				_, err := parser.Ports(logger, tt.receiverName, []interface{}{"junk"})
@@ -408,7 +409,7 @@ func TestMultiEndpointReceiverParsers(t *testing.T) {
 			})
 			t.Run("good config, unknown protocol", func(t *testing.T) {
 				// prepare
-				parser := receivers.ReceiverFor(tt.receiverName)
+				parser := components.ParserFor(constants.ComponentTypeReceiver, tt.receiverName)
 
 				// test
 				_, err := parser.Ports(logger, tt.receiverName, map[string]interface{}{
@@ -423,7 +424,7 @@ func TestMultiEndpointReceiverParsers(t *testing.T) {
 			for _, kase := range tt.cases {
 				t.Run(kase.name, func(t *testing.T) {
 					// prepare
-					parser := receivers.ReceiverFor(tt.receiverName)
+					parser := components.ParserFor(constants.ComponentTypeReceiver, tt.receiverName)
 
 					// test
 					ports, err := parser.Ports(logger, tt.receiverName, kase.config)

@@ -46,3 +46,15 @@ const (
 	FlagNodeJS      = "enable-nodejs-instrumentation"
 	FlagJava        = "enable-java-instrumentation"
 )
+
+type ComponentType int
+
+const (
+	ComponentTypeReceiver ComponentType = iota
+	ComponentTypeExporter
+	ComponentTypeProcessor
+)
+
+func (c ComponentType) String() string {
+	return [...]string{"receiver", "exporter", "processor"}[c]
+}

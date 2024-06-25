@@ -21,8 +21,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/open-telemetry/opentelemetry-operator/internal/components/receivers"
+	"github.com/open-telemetry/opentelemetry-operator/internal/components"
 	"github.com/open-telemetry/opentelemetry-operator/internal/naming"
+	"github.com/open-telemetry/opentelemetry-operator/pkg/constants"
 )
 
 var logger = logf.Log.WithName("unit-tests")
@@ -30,7 +31,7 @@ var logger = logf.Log.WithName("unit-tests")
 func TestParseEndpoint(t *testing.T) {
 	// prepare
 	// there's no parser registered to handle "myreceiver", so, it falls back to the generic parser
-	parser := receivers.ReceiverFor("myreceiver")
+	parser := components.ParserFor(constants.ComponentTypeReceiver, "myreceiver")
 
 	// test
 	ports, err := parser.Ports(logger, "myreceiver", map[string]interface{}{
@@ -46,7 +47,7 @@ func TestParseEndpoint(t *testing.T) {
 func TestFailedToParseEndpoint(t *testing.T) {
 	// prepare
 	// there's no parser registered to handle "myreceiver", so, it falls back to the generic parser
-	parser := receivers.ReceiverFor("myreceiver")
+	parser := components.ParserFor(constants.ComponentTypeReceiver, "myreceiver")
 
 	// test
 	ports, err := parser.Ports(logger, "myreceiver", map[string]interface{}{
@@ -77,6 +78,7 @@ func TestDownstreamParsers(t *testing.T) {
 		{"wavefront", "wavefront", "__wavefront", 2003, false},
 		{"fluentforward", "fluentforward", "__fluentforward", 8006, false},
 		{"statsd", "statsd", "__statsd", 8125, false},
+		{"statsd-dev", "statsd/dev", "__statsd", 8125, false}, // test one with a custom name
 		{"influxdb", "influxdb", "__influxdb", 8086, false},
 		{"splunk_hec", "splunk_hec", "__splunk_hec", 8088, false},
 		{"awsxray", "awsxray", "__awsxray", 2000, false},
@@ -86,14 +88,14 @@ func TestDownstreamParsers(t *testing.T) {
 		t.Run(tt.receiverName, func(t *testing.T) {
 			t.Run("builds successfully", func(t *testing.T) {
 				// test
-				parser := receivers.ReceiverFor(tt.receiverName)
+				parser := components.ParserFor(constants.ComponentTypeReceiver, tt.receiverName)
 
 				// verify
 				assert.Equal(t, tt.parserName, parser.ParserName())
 			})
 			t.Run("bad config errors", func(t *testing.T) {
 				// prepare
-				parser := receivers.ReceiverFor(tt.receiverName)
+				parser := components.ParserFor(constants.ComponentTypeReceiver, tt.receiverName)
 
 				// test throwing in pure junk
 				_, err := parser.Ports(logger, tt.receiverName, func() {})
@@ -104,7 +106,7 @@ func TestDownstreamParsers(t *testing.T) {
 
 			t.Run("assigns the expected port", func(t *testing.T) {
 				// prepare
-				parser := receivers.ReceiverFor(tt.receiverName)
+				parser := components.ParserFor(constants.ComponentTypeReceiver, tt.receiverName)
 
 				// test
 				ports, err := parser.Ports(logger, tt.receiverName, map[string]interface{}{})
@@ -122,7 +124,7 @@ func TestDownstreamParsers(t *testing.T) {
 
 			t.Run("allows port to be overridden", func(t *testing.T) {
 				// prepare
-				parser := receivers.ReceiverFor(tt.receiverName)
+				parser := components.ParserFor(constants.ComponentTypeReceiver, tt.receiverName)
 
 				// test
 				var ports []corev1.ServicePort
