@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/kubernetes/scheme"
 	kubeTesting "k8s.io/client-go/testing"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/open-telemetry/opentelemetry-operator/internal/config"
 	"github.com/open-telemetry/opentelemetry-operator/internal/rbac"
@@ -1247,6 +1248,9 @@ func TestOTELColValidatingWebhook(t *testing.T) {
 					config.WithTargetAllocatorImage("ta:v0.0.0"),
 				),
 				reviewer: getReviewer(test.shouldFailSar),
+				bv: func(col OpenTelemetryCollector) (admission.Warnings, error) {
+					return nil, fmt.Errorf("EVERYTHING IS BROKEN")
+				},
 			}
 			ctx := context.Background()
 			warnings, err := cvw.ValidateCreate(ctx, &test.otelcol)
