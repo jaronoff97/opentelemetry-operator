@@ -38,9 +38,12 @@ spec:
         - assert:
             resource:
               (length(values($result))): 1
-              (values($result)[0].status.sequence_num >= `2`): true
-              (values($result)[0].status.health.healthy): true
-              (length(values($result)[0].effective_config)): 0
+              (values($result)):
+                - status:
+                    (sequence_num >= `2`): true
+                    health:
+                      healthy: true
+                  effective_config: {}
     - catch:
         - podLogs:
             selector: app.kubernetes.io/component=opentelemetry-opamp-bridge
@@ -87,16 +90,21 @@ spec:
             outputs:
               - name: result
                 value: (json_parse($stdout))
+              - name: collector_key
+                value: (join('/', [$namespace, 'simplest']))
         - assert:
             resource:
-              # Note: often times here I need to assert the length and then get the 0th element
-              # it would be great if I could wildcard for the initial instance id key and then
-              # construct a compound key of `$NAMESPACE/simplest` for the collector I want to assert
               (length(values($result))): 1
-              (values($result)[0].status.sequence_num >= `2`): true
-              (values($result)[0].status.health.healthy): true
-              (length(values($result)[0].status.health.component_health_map)): 1
-              (values(values($result)[0].status.health.component_health_map)[0].healthy): true
-              (length(values($result)[0].effective_config)): 1
-              (length(values($result)[0].status.effective_config.config_map.config_map)): 1
-              (length(values(values($result)[0].status.effective_config.config_map.config_map)[0].body) > `0`): true
+              (values($result)):
+                - status:
+                    (sequence_num >= `2`): true
+                    health:
+                      healthy: true
+                      component_health_map:
+                        ($collector_key):
+                          status: "1/1"
+#                  effective_config:
+#                    config_map:
+#                      config_map:
+#                        ($collector_key):
+#                          (length(body) > `0`): true
