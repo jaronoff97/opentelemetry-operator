@@ -166,8 +166,8 @@ func (langInsts languageInstrumentations) areInstrumentedContainersCorrect() (bo
 
 // Set containers for configured instrumentation.
 func (langInsts *languageInstrumentations) setCommonInstrumentedContainers(ns corev1.Namespace, pod corev1.Pod) error {
-	containersAnnotation := annotationValue(ns.ObjectMeta, pod.ObjectMeta, annotationInjectContainerName)
-	if err := isValidContainersAnnotation(containersAnnotation); err != nil {
+	containersAnnotation := AnnotationValue(ns.ObjectMeta, pod.ObjectMeta, AnnotationInjectContainerName)
+	if err := IsValidContainersAnnotation(containersAnnotation); err != nil {
 		return err
 	}
 
@@ -332,7 +332,7 @@ func (pm *instPodMutator) Mutate(ctx context.Context, ns corev1.Namespace, pod c
 	}
 	if pm.config.EnableDotNetAutoInstrumentation() || inst == nil {
 		insts.DotNet.Instrumentation = inst
-		insts.DotNet.AdditionalAnnotations = map[string]string{annotationDotNetRuntime: annotationValue(ns.ObjectMeta, pod.ObjectMeta, annotationDotNetRuntime)}
+		insts.DotNet.AdditionalAnnotations = map[string]string{annotationDotNetRuntime: AnnotationValue(ns.ObjectMeta, pod.ObjectMeta, annotationDotNetRuntime)}
 	} else {
 		logger.Error(nil, "support for .NET auto instrumentation is not enabled")
 		pm.Recorder.Event(pod.DeepCopy(), "Warning", "InstrumentationRequestRejected", "support for .NET auto instrumentation is not enabled")
@@ -419,7 +419,7 @@ func (pm *instPodMutator) Mutate(ctx context.Context, ns corev1.Namespace, pod c
 }
 
 func (pm *instPodMutator) getInstrumentationInstance(ctx context.Context, ns corev1.Namespace, pod corev1.Pod, instAnnotation string) (*v1alpha1.Instrumentation, error) {
-	instValue := annotationValue(ns.ObjectMeta, pod.ObjectMeta, instAnnotation)
+	instValue := AnnotationValue(ns.ObjectMeta, pod.ObjectMeta, instAnnotation)
 
 	if len(instValue) == 0 || strings.EqualFold(instValue, "false") {
 		return nil, nil

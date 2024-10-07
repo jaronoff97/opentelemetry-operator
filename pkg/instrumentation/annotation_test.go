@@ -133,7 +133,7 @@ func TestEffectiveAnnotationValue(t *testing.T) {
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
 			// test
-			annValue := annotationValue(tt.ns.ObjectMeta, tt.pod.ObjectMeta, annotationInjectJava)
+			annValue := AnnotationValue(tt.ns.ObjectMeta, tt.pod.ObjectMeta, annotationInjectJava)
 
 			// verify
 			assert.Equal(t, tt.expected, annValue)

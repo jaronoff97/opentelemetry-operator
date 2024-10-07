@@ -130,7 +130,7 @@ func volumeSize(quantity *resource.Quantity) *resource.Quantity {
 	return quantity
 }
 
-func isValidContainersAnnotation(containersAnnotation string) error {
+func IsValidContainersAnnotation(containersAnnotation string) error {
 	if containersAnnotation == "" {
 		return nil
 	}
@@ -147,12 +147,12 @@ func isValidContainersAnnotation(containersAnnotation string) error {
 
 // setContainersFromAnnotation sets the containers associated to one intrumentation based on the content of the provided annotation.
 func setContainersFromAnnotation(inst *instrumentationWithContainers, annotation string, ns metav1.ObjectMeta, pod metav1.ObjectMeta) error {
-	annotationValue := annotationValue(ns, pod, annotation)
+	annotationValue := AnnotationValue(ns, pod, annotation)
 	if annotationValue == "" {
 		return nil
 	}
 
-	if err := isValidContainersAnnotation(annotationValue); err != nil {
+	if err := IsValidContainersAnnotation(annotationValue); err != nil {
 		return err
 	}
 	languageContainers := strings.Split(annotationValue, ",")

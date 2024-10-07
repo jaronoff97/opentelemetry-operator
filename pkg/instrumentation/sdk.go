@@ -597,7 +597,6 @@ func resourceMapToStr(res map[string]string) string {
 		}
 		str += fmt.Sprintf("%s=%s", k, res[k])
 	}
-
 	return str
 }
 

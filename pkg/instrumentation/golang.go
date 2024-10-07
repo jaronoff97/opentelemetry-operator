@@ -43,7 +43,7 @@ func injectGoSDK(goSpec v1alpha1.Go, pod corev1.Pod, cfg config.Config) (corev1.
 	if cfg.EnableMultiInstrumentation() {
 		containerNames, ok = pod.Annotations[annotationInjectGoContainersName]
 	} else {
-		containerNames, ok = pod.Annotations[annotationInjectContainerName]
+		containerNames, ok = pod.Annotations[AnnotationInjectContainerName]
 	}
 
 	if ok && len(strings.Split(containerNames, ",")) > 1 {

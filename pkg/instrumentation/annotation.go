@@ -21,9 +21,9 @@ import (
 )
 
 const (
-	// annotationInjectJava indicates whether java auto-instrumentation should be injected or not.
+	// AnnotationInjectContainerName indicates whether java auto-instrumentation should be injected or not.
 	// Possible values are "true", "false" or "<Instrumentation>" name.
-	annotationInjectContainerName             = "instrumentation.opentelemetry.io/container-names"
+	AnnotationInjectContainerName             = "instrumentation.opentelemetry.io/container-names"
 	annotationInjectJava                      = "instrumentation.opentelemetry.io/inject-java"
 	annotationInjectJavaContainersName        = "instrumentation.opentelemetry.io/java-container-names"
 	annotationInjectNodeJS                    = "instrumentation.opentelemetry.io/inject-nodejs"
@@ -44,8 +44,8 @@ const (
 	annotationInjectNginxContainersName       = "instrumentation.opentelemetry.io/inject-nginx-container-names"
 )
 
-// annotationValue returns the effective annotationInjectJava value, based on the annotations from the pod and namespace.
-func annotationValue(ns metav1.ObjectMeta, pod metav1.ObjectMeta, annotation string) string {
+// AnnotationValue returns the effective annotationInjectJava value, based on the annotations from the pod and namespace.
+func AnnotationValue(ns metav1.ObjectMeta, pod metav1.ObjectMeta, annotation string) string {
 	// is the pod annotated with instructions to inject sidecars? is the namespace annotated?
 	// if any of those is true, a sidecar might be desired.
 	podAnnValue := pod.Annotations[annotation]

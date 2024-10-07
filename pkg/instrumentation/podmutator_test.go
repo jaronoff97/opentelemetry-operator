@@ -310,7 +310,7 @@ func TestMutatePod(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						annotationInjectJava:          "true",
-						annotationInjectContainerName: "app1,app2",
+						AnnotationInjectContainerName: "app1,app2",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -328,7 +328,7 @@ func TestMutatePod(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						annotationInjectJava:          "true",
-						annotationInjectContainerName: "app1,app2",
+						AnnotationInjectContainerName: "app1,app2",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -872,7 +872,7 @@ func TestMutatePod(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						annotationInjectNodeJS:        "true",
-						annotationInjectContainerName: "app1,app2",
+						AnnotationInjectContainerName: "app1,app2",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -890,7 +890,7 @@ func TestMutatePod(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						annotationInjectNodeJS:        "true",
-						annotationInjectContainerName: "app1,app2",
+						AnnotationInjectContainerName: "app1,app2",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -1426,7 +1426,7 @@ func TestMutatePod(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						annotationInjectPython:        "true",
-						annotationInjectContainerName: "app1,app2",
+						AnnotationInjectContainerName: "app1,app2",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -1444,7 +1444,7 @@ func TestMutatePod(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						annotationInjectPython:        "true",
-						annotationInjectContainerName: "app1,app2",
+						AnnotationInjectContainerName: "app1,app2",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -2194,7 +2194,7 @@ func TestMutatePod(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						annotationInjectDotNet:        "true",
-						annotationInjectContainerName: "app1,app2",
+						AnnotationInjectContainerName: "app1,app2",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -2212,7 +2212,7 @@ func TestMutatePod(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						annotationInjectDotNet:        "true",
-						annotationInjectContainerName: "app1,app2",
+						AnnotationInjectContainerName: "app1,app2",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -4250,7 +4250,7 @@ func TestMutatePod(t *testing.T) {
 						annotationInjectJavaContainersName:   "java1,java2",
 						annotationInjectNodeJSContainersName: "nodejs1,nodejs2",
 						annotationInjectPythonContainersName: "python1,python2",
-						annotationInjectContainerName:        "should-not-be-instrumented1,should-not-be-instrumented2",
+						AnnotationInjectContainerName:        "should-not-be-instrumented1,should-not-be-instrumented2",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -4299,7 +4299,7 @@ func TestMutatePod(t *testing.T) {
 						annotationInjectJavaContainersName:   "java1,java2",
 						annotationInjectNodeJSContainersName: "nodejs1,nodejs2",
 						annotationInjectPythonContainersName: "python1,python2",
-						annotationInjectContainerName:        "should-not-be-instrumented1,should-not-be-instrumented2",
+						AnnotationInjectContainerName:        "should-not-be-instrumented1,should-not-be-instrumented2",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -4913,7 +4913,7 @@ func TestInstrumentationLanguageContainersSet(t *testing.T) {
 			pod: corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						annotationInjectContainerName: "python,python1",
+						AnnotationInjectContainerName: "python,python1",
 					},
 				},
 			},
@@ -4929,7 +4929,7 @@ func TestInstrumentationLanguageContainersSet(t *testing.T) {
 			pod: corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
-						annotationInjectContainerName: "python,python1",
+						AnnotationInjectContainerName: "python,python1",
 					},
 				},
 			},
