@@ -177,6 +177,14 @@ type mockOpampClient struct {
 	settings            types.StartSettings
 }
 
+// SetAvailableComponents implements client.OpAMPClient.
+func (m *mockOpampClient) SetAvailableComponents(components *protobufs.AvailableComponents) error {
+	return nil
+}
+
+// SetFlags implements client.OpAMPClient.
+func (m *mockOpampClient) SetFlags(flags protobufs.AgentToServerFlags) {}
+
 func (m *mockOpampClient) SetCustomCapabilities(_ *protobufs.CustomCapabilities) error {
 	return nil
 }
