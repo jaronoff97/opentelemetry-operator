@@ -18,7 +18,10 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  id-token: write
   contents: read
+  attestations: write
+  packages: write
 
 jobs:
   publish:
